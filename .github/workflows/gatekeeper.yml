@@ -1,0 +1,43 @@
+name: Autonomous Gatekeeper
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+# Sequential per-author execution avoids race conditions in the
+# rate-limit checks (an author opening many PRs in parallel could
+# otherwise have all of them pass the cap simultaneously).
+concurrency:
+  group: gatekeeper-${{ github.event.pull_request.user.login }}
+  cancel-in-progress: false
+
+permissions:
+  pull-requests: write
+  contents: write
+  issues: write
+
+jobs:
+  process-pr:
+    runs-on: ubuntu-latest
+    steps:
+      # NOTE: pull_request_target checks out the BASE branch (main).
+      # The gatekeeper code that runs is the version on main, not the
+      # version from the (potentially malicious) PR head. This is
+      # intentional and load-bearing — do not change to pull_request.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - run: pip install -r requirements.txt
+
+      - name: Execute Gatekeeper
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
+          AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+        run: python scripts/process_pr.py
