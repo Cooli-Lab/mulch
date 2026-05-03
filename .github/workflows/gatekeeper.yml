@@ -45,7 +45,7 @@ jobs:
           body    = (os.environ.get("BODY") or "").strip()
           changed = os.environ.get("CHANGED_FILES") or "?"
           excerpt = body[:240] + ("…" if len(body) > 240 else "")
-          msg = f"🤖 **New Zone PR** from `@{author}` ({changed} files)\n**{title}**"
+          msg = f"🤖 **New Mulch PR** from `@{author}` ({changed} files)\n**{title}**"
           if excerpt:
               msg += f"\n> {excerpt}"
           msg += f"\n{url}"

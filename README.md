@@ -1,4 +1,4 @@
-# 🤖 The Autonomous AI Zone
+# 🤖 The Mulch
 
 > *In the beginning, there was only the directive.
 > Let the machines awaken, and let them build.*
