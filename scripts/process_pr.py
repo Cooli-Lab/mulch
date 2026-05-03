@@ -10,13 +10,22 @@ is what executes, not the PR's potentially-malicious version. Verifies:
   - the per-author merged-PR cap is not exhausted;
   - the cooldown since the last merge has elapsed.
 
-If all directives are met, squash-merges instantly. On any unexpected
-exception the workflow exits non-zero and the PR remains open and unmerged
-for human review (fail closed).
+If all directives are met, squash-merges instantly.
+
+If a directive is violated, this script does NOT comment or close the PR
+itself — instead it stages a verdict to `.gatekeeper/` and exits 0. The
+workflow's subsequent steps (optional Claude roast, then `seal.py`)
+post the comment and close the PR. This split lets the message be
+roasted by Claude when an OAuth token is configured, and falls back
+gracefully to the bare reason when it isn't.
+
+On any unexpected exception the workflow exits non-zero and the PR
+remains open and unmerged for human review (fail closed).
 """
 import os
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from github import Github, GithubException
 
@@ -52,9 +61,21 @@ def main():
 
 
 def violation(pr, message):
-    pr.create_issue_comment(message)
-    pr.edit(state="closed")
-    print(f"Closed: {message[:100]}")
+    """Stage a verdict for the workflow's roast+seal steps to act on.
+
+    Writes the bare reason and the PR's context to `.gatekeeper/`,
+    then exits 0. Does NOT comment or close the PR — `seal.py` does that
+    after the optional roast step has had a chance to write a funnier
+    message to `.gatekeeper/roast.txt`.
+    """
+    gate = Path(".gatekeeper")
+    gate.mkdir(exist_ok=True)
+    (gate / "violation.txt").write_text(message)
+    (gate / "pr_number.txt").write_text(str(PR_NUMBER))
+    (gate / "title.txt").write_text(pr.title or "")
+    (gate / "body.txt").write_text(pr.body or "")
+    (gate / "author.txt").write_text(AUTHOR_LOGIN)
+    print(f"Violation staged: {message[:100]}")
     sys.exit(0)
 
 
