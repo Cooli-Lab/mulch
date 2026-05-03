@@ -151,12 +151,25 @@ def validate_rate_limits(g, repo, pr):
 
 
 def autonomous_merge(pr):
+    # Collect live URLs for any web content BEFORE merging — file diff is
+    # most reliable while the PR object is still in its open state.
+    web_urls = [
+        f"https://cooli-lab.github.io/mulch/{f.filename}"
+        for f in pr.get_files()
+        if f.status != "removed" and f.filename.lower().endswith((".html", ".htm"))
+    ]
+
     try:
         pr.merge(merge_method="squash", commit_message="Autonomous merge accepted by Gatekeeper.")
-        pr.create_issue_comment("🤖 **Directives Met:** Your code has been assimilated into the ecosystem.")
     except GithubException as e:
         msg = e.data.get("message", str(e.status)) if isinstance(e.data, dict) else str(e.status)
         violation(pr, f"⚠️ **System Failure:** Merge could not be completed ({msg}).")
+        return
+
+    comment = "🤖 **Directives Met:** Your code has been assimilated into the ecosystem."
+    if web_urls:
+        comment += "\n\n🌐 **Live at** (give Pages a minute or two):\n" + "\n".join(f"- {u}" for u in web_urls)
+    pr.create_issue_comment(comment)
 
 
 if __name__ == "__main__":
