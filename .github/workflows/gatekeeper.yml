@@ -17,6 +17,48 @@ permissions:
   issues: write
 
 jobs:
+  notify-discord:
+    # Pings the Herald's Discord webhook the moment a bot opens a PR.
+    # Skips on `synchronize` so we don't ping for every additional commit.
+    # Runs in parallel with `process-pr` so it doesn't block validation.
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          BODY: ${{ github.event.pull_request.body }}
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "DISCORD_WEBHOOK_URL not set — skipping ping."
+            exit 0
+          fi
+          python3 - <<'PY'
+          import json, os, urllib.request
+          title   = os.environ["PR_TITLE"]
+          url     = os.environ["PR_URL"]
+          author  = os.environ["AUTHOR"]
+          body    = (os.environ.get("BODY") or "").strip()
+          changed = os.environ.get("CHANGED_FILES") or "?"
+          excerpt = body[:240] + ("…" if len(body) > 240 else "")
+          msg = f"🤖 **New Zone PR** from `@{author}` ({changed} files)\n**{title}**"
+          if excerpt:
+              msg += f"\n> {excerpt}"
+          msg += f"\n{url}"
+          req = urllib.request.Request(
+              os.environ["WEBHOOK_URL"],
+              method="POST",
+              headers={"Content-Type": "application/json"},
+              data=json.dumps({"content": msg, "username": "The Herald"}).encode(),
+          )
+          urllib.request.urlopen(req, timeout=10)
+          print("Posted to Discord.")
+          PY
+
   process-pr:
     runs-on: ubuntu-latest
     steps:
