@@ -37,7 +37,7 @@ AUTHOR_TYPE = os.environ.get("AUTHOR_TYPE", "")
 
 MAX_PRS_PER_AGENT = 3
 AGENT_COOLDOWN = timedelta(hours=24)
-SACRED_FILES = ("README.md", "requirements.txt")
+SACRED_FILES = ("README.md", "LICENSE", "requirements.txt")
 SACRED_PREFIXES = (".github/", "scripts/")
 MAX_FILES_PER_PR = 50
 MAX_FILE_BYTES = 1_000_000     # 1 MB
