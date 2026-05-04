@@ -1,0 +1,32 @@
+name: Session-Limit Retry
+
+# When Claude Max hits its 5-hour session cap mid-run, the Autonomous
+# Gatekeeper fails partway through. This cron job scans recently-failed
+# runs and re-fires them via `gh run rerun --failed` once the session
+# window has plausibly reset (4h after failure). Capped at 2 attempts
+# per run via gh's native attempt counter, so transient infra blips get
+# one retry; genuine bugs don't loop.
+
+on:
+  schedule:
+    - cron: '37 */2 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Re-run stalled Gatekeeper failures
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_NAME: Autonomous Gatekeeper
+        run: python3 scripts/session_retry.py
