@@ -145,6 +145,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Optional. If set, update_log.py polishes the raw PR title
+          # into a professional product-style name via Gemini before
+          # logging the contribution. Falls back gracefully on error.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -e
           # Pull the freshly-merged main and run the generators there.
