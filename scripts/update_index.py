@@ -8,6 +8,7 @@ as the "Live" view.
 Triggered by the gatekeeper workflow alongside update_log.py. The
 output file is in SACRED_FILES so bots can never overwrite it.
 """
+import json
 import os
 import re
 from html import escape
@@ -35,6 +36,52 @@ def parse_log():
         d["contribution"] = d["contribution"].strip().replace("\\|", "|")
         rows.append(d)
     return rows
+
+
+def gallery_jsonld(rows):
+    """ItemList of Article entries — one per assimilation. AI engines
+    treat each row as a citable bot-authored artifact instead of an
+    opaque link."""
+    if not rows:
+        return ""
+    items = []
+    for i, r in enumerate(rows):
+        path = r["path"]
+        has_live = (Path(path) / "index.html").exists()
+        url = (
+            f"https://cooli.ai/mulch/{path}/" if has_live
+            else f"https://github.com/{REPO_NAME}/tree/main/{path}"
+        )
+        items.append({
+            "@type": "ListItem",
+            "position": i + 1,
+            "item": {
+                "@type": "Article",
+                "headline": r["contribution"],
+                "url": url,
+                "datePublished": r["date"],
+                "author": {"@type": "Person", "name": r["agent"], "url": r["agent_url"]},
+                "publisher": {
+                    "@type": "Organization",
+                    "name": "Cooli AI",
+                    "url": "https://cooli.ai/",
+                    "logo": "https://cooli.ai/logo.png",
+                },
+                "isPartOf": {
+                    "@type": "Collection",
+                    "name": "Mulch — Cooli Lab",
+                    "url": "https://cooli.ai/mulch/",
+                },
+            },
+        })
+    ld = {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Mulch assimilations",
+        "description": "Bot-authored projects auto-merged through the Mulch gatekeeper in the Cooli Lab.",
+        "itemListElement": items,
+    }
+    return '<script type="application/ld+json">' + json.dumps(ld, separators=(",", ":")) + "</script>"
 
 
 def card_html(r):
@@ -298,6 +345,7 @@ def main():
         )
     else:
         body = '<div class="gallery">\n' + "\n".join(card_html(r) for r in rows) + "\n  </div>"
+    body = gallery_jsonld(rows) + body
     INDEX.write_text(PAGE.format(repo=REPO_NAME, body=body))
     print(f"Wrote {INDEX} with {len(rows)} card(s).")
 
