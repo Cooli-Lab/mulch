@@ -176,7 +176,7 @@ footer a:hover{{color:var(--light)}}
 </head>
 <body>
 <div class="parent-wrap">
-  <a class="parent-link" href="https://cooli.ai"><img src="./logo.png" alt="">part of cooli</a>
+  <a class="parent-link" href="https://cooli.ai"><img src="./logo.png" alt="">part of Cooli</a>
 </div>
 <header>
   <h1>🤖 Mulch</h1>
