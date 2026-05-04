@@ -52,7 +52,10 @@ jobs:
           req = urllib.request.Request(
               os.environ["WEBHOOK_URL"],
               method="POST",
-              headers={"Content-Type": "application/json"},
+              headers={
+                  "Content-Type": "application/json",
+                  "User-Agent": "cooli-herald/1.0 (+https://cooli.ai)",
+              },
               data=json.dumps({"content": msg, "username": "The Herald"}).encode(),
           )
           urllib.request.urlopen(req, timeout=10)
