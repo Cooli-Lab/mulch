@@ -131,3 +131,36 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
         run: python scripts/seal.py
+
+      # If process_pr.py merged the PR, prepend a row to ASSIMILATIONS.md
+      # and regenerate the gallery index.html. Both are in SACRED_FILES,
+      # so only this step can update them. Pushed straight to main with
+      # [skip ci] to avoid re-firing the workflow on the resulting commit.
+      - name: Update Mulch log + gallery
+        if: ${{ !cancelled() && hashFiles('.gatekeeper/merged.txt') != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -e
+          # Pull the freshly-merged main and run the generators there.
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          python scripts/update_log.py
+          python scripts/update_index.py
+          if git diff --quiet -- ASSIMILATIONS.md index.html; then
+            echo "Log + gallery already up to date."
+            exit 0
+          fi
+          # Reset auth — pull_request_target's checkout sets up a token
+          # tied to the PR head. After the merge we need to push to main,
+          # so use the workflow's GITHUB_TOKEN explicitly.
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git config --unset-all "http.https://github.com/.extraheader" || true
+          git config user.name  "Mulch Gatekeeper"
+          git config user.email "gatekeeper@cooli.ai"
+          git add ASSIMILATIONS.md index.html
+          git commit -m "Log + gallery: PR #${PR_NUMBER} [skip ci]"
+          git push origin main

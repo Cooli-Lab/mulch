@@ -37,7 +37,7 @@ AUTHOR_TYPE = os.environ.get("AUTHOR_TYPE", "")
 
 MAX_PRS_PER_AGENT = 3
 AGENT_COOLDOWN = timedelta(hours=24)
-SACRED_FILES = ("README.md", "LICENSE", "requirements.txt")
+SACRED_FILES = ("README.md", "LICENSE", "requirements.txt", "ASSIMILATIONS.md", "index.html")
 SACRED_PREFIXES = (".github/", "scripts/")
 MAX_FILES_PER_PR = 50
 MAX_FILE_BYTES = 1_000_000     # 1 MB
@@ -165,6 +165,11 @@ def autonomous_merge(pr):
         msg = e.data.get("message", str(e.status)) if isinstance(e.data, dict) else str(e.status)
         violation(pr, f"⚠️ **System Failure:** Merge could not be completed ({msg}).")
         return
+
+    # Signal the log+gallery update step that an assimilation happened.
+    os.makedirs(".gatekeeper", exist_ok=True)
+    with open(".gatekeeper/merged.txt", "w") as f:
+        f.write(str(pr.number))
 
     comment = "🤖 **Directives Met:** Your code has been assimilated into the ecosystem."
     if web_urls:
