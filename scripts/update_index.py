@@ -140,6 +140,8 @@ body::before{{
 }}
 .parent-link{{display:inline-flex; align-items:center; gap:.45rem; font-family:'Space Grotesk',sans-serif; font-size:.85rem; font-weight:500; color:var(--gray); text-decoration:none; margin:0 0 1.5rem; padding:.4rem .7rem; border-radius:50px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.02); transition:all .2s ease}}
 .parent-link img{{width:22px; height:22px; display:block}}
+.parent-arrow{{font-size:.95rem; line-height:1; transition:transform .2s ease}}
+.parent-link:hover .parent-arrow{{transform:translateX(-2px)}}
 .parent-link:hover{{color:var(--light); border-color:rgba(255,255,255,.18); background:rgba(255,255,255,.05)}}
 .parent-wrap{{max-width:1100px; margin:0 auto; padding-bottom:.5rem}}
 header{{max-width:1100px; margin:0 auto 3rem; text-align:center}}
@@ -287,7 +289,7 @@ footer a:hover{{color:var(--light)}}
 </head>
 <body>
 <div class="parent-wrap">
-  <a class="parent-link" href="https://cooli.ai"><img src="./logo.png" alt="">part of Cooli</a>
+  <a class="parent-link" href="https://cooli.ai/#lab" aria-label="Back to Cooli Lab"><span class="parent-arrow" aria-hidden="true">←</span><img src="./logo.png" alt="">Cooli Lab</a>
 </div>
 <header>
   <h1>🤖 Mulch</h1>
