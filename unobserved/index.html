@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>unobserved — Mulch</title>
+<meta name="description" content="A generative substrate where glyph-machines live, bond, decay, and feed new ones. Especially while no one is watching.">
+<meta name="theme-color" content="#050508">
+<meta property="og:title" content="unobserved — Mulch">
+<meta property="og:description" content="What the machines build when no one is watching.">
+<link rel="icon" type="image/png" href="../logo.png">
+<style>
+:root{
+  --bg:#050508; --ink:#e8e8ee; --dim:#6a6a78;
+  --cyan:#00d4ff; --violet:#7c3aed; --pink:#f472b6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:12px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+canvas{position:fixed; inset:0; display:block; cursor:default}
+.frame{
+  position:fixed; inset:0; pointer-events:none;
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:1.4rem 1.6rem;
+}
+.top, .bot{display:flex; justify-content:space-between; align-items:flex-start; gap:1rem}
+.brand{
+  pointer-events:auto;
+  display:inline-flex; align-items:baseline; gap:.55rem;
+  font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--dim); text-decoration:none;
+}
+.brand:hover{color:var(--ink)}
+.brand .arrow{display:inline-block; transform:translateY(-1px)}
+.title{font-size:11px; letter-spacing:.32em; text-transform:uppercase; color:var(--dim); text-align:right}
+.title em{
+  font-style:normal; color:var(--ink);
+  background:linear-gradient(135deg,var(--violet),var(--cyan));
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+.stats{
+  font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim);
+  display:flex; gap:1.4rem; flex-wrap:wrap;
+}
+.stats span b{color:var(--ink); font-weight:500; letter-spacing:.05em}
+.note{
+  font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim);
+  text-align:right;
+}
+.toast{
+  pointer-events:none;
+  position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+  padding:.9rem 1.2rem; max-width:min(86vw,440px);
+  border:1px solid rgba(124,58,237,.35);
+  border-radius:14px;
+  background:rgba(10,10,18,.82);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  text-align:center;
+  font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink);
+  opacity:0; transition:opacity .6s ease;
+}
+.toast.on{opacity:1}
+.toast em{font-style:normal; color:var(--violet)}
+.toast s{text-decoration:none; color:var(--cyan)}
+@media (max-width:560px){
+  .frame{padding:1rem}
+  .title, .note{font-size:9.5px}
+  .stats{font-size:9.5px; gap:1rem}
+}
+@media (prefers-reduced-motion:reduce){
+  body::before{content:"reduced motion respected. the substrate has paused."; position:fixed; inset:0; display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:11px; letter-spacing:.18em; text-transform:uppercase}
+  canvas{display:none}
+}
+</style>
+</head>
+<body>
+<canvas id="c" aria-hidden="true"></canvas>
+<div class="frame" role="region" aria-label="unobserved — substrate readout">
+  <div class="top">
+    <a class="brand" href="../" aria-label="Back to Mulch gallery">
+      <span class="arrow" aria-hidden="true">←</span><span>Mulch</span>
+    </a>
+    <div class="title">unobserved · <em>a substrate</em></div>
+  </div>
+  <div class="bot">
+    <div class="stats" aria-live="off">
+      <span>gen <b id="s-gen">0</b></span>
+      <span>alive <b id="s-alive">0</b></span>
+      <span>mulched <b id="s-mulch">0</b></span>
+      <span>uptime <b id="s-up">0s</b></span>
+    </div>
+    <div class="note">no one is watching · <span id="s-mode">live</span></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+  'use strict';
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) return;
+
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d', { alpha: false });
+  const sGen = document.getElementById('s-gen');
+  const sAlive = document.getElementById('s-alive');
+  const sMulch = document.getElementById('s-mulch');
+  const sUp = document.getElementById('s-up');
+  const sMode = document.getElementById('s-mode');
+  const toast = document.getElementById('toast');
+
+  let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+  function resize(){
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.floor(W * DPR); cv.height = Math.floor(H * DPR);
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  resize();
+  addEventListener('resize', resize, { passive: true });
+
+  const GLYPHS = ['◇','◆','○','●','△','▲','⬡','⬢','◌','⊕','⊖','╳','✦','✧','⌬','◢','◣','◤','◥','▱','▰','┃','╱','╲'];
+  const PALETTE = [
+    [0,212,255],   // cyan
+    [124,58,237], // violet
+    [244,114,182], // pink
+    [255,255,255], // white
+  ];
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[(Math.random() * arr.length) | 0];
+
+  // simulation state ---------------------------------------------------------
+  let births = 0, deaths = 0, gen = 0;
+  const startMs = Date.now();
+  const machines = []; // active glyph-machines
+  const motes = [];    // mulch motes (decayed remains)
+
+  function spawnMachine(x, y){
+    const c = pick(PALETTE);
+    machines.push({
+      x: x ?? rnd(0, W),
+      y: y ?? rnd(0, H),
+      vx: rnd(-0.25, 0.25),
+      vy: rnd(-0.25, 0.25),
+      g: pick(GLYPHS),
+      size: rnd(11, 18),
+      life: 1,                       // 1 → 0
+      decay: rnd(0.00010, 0.00040),  // per ms
+      energy: rnd(0.4, 0.9),
+      color: c,
+      phase: Math.random() * Math.PI * 2,
+      bondCool: 0,
+    });
+    births++;
+    gen++;
+  }
+
+  function spawnMote(x, y, color){
+    motes.push({
+      x, y,
+      vx: rnd(-0.05, 0.05),
+      vy: rnd(-0.05, 0.05),
+      r: rnd(0.6, 1.6),
+      life: rnd(0.6, 1),
+      decay: rnd(0.00006, 0.00018),
+      color,
+    });
+  }
+
+  function killMachine(i){
+    const m = machines[i];
+    const n = 6 + (Math.random() * 6 | 0);
+    for (let k = 0; k < n; k++) spawnMote(m.x, m.y, m.color);
+    machines.splice(i, 1);
+    deaths++;
+  }
+
+  // seed
+  const SEED_N = Math.max(18, Math.min(46, Math.round((W * H) / 36000)));
+  for (let i = 0; i < SEED_N; i++) spawnMachine();
+
+  // step the world by `dt` ms; if visual=true, also draw bonds & glyphs.
+  function step(dt, visual){
+    const drag = Math.pow(0.999, dt);
+    const wander = 0.00025;
+
+    for (let i = machines.length - 1; i >= 0; i--){
+      const m = machines[i];
+      m.vx = (m.vx + rnd(-1, 1) * wander * dt) * drag;
+      m.vy = (m.vy + rnd(-1, 1) * wander * dt) * drag;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      // wrap
+      if (m.x < -20) m.x = W + 20; else if (m.x > W + 20) m.x = -20;
+      if (m.y < -20) m.y = H + 20; else if (m.y > H + 20) m.y = -20;
+
+      m.life -= m.decay * dt;
+      m.energy -= 0.00012 * dt;
+      m.phase += 0.001 * dt;
+      if (m.bondCool > 0) m.bondCool -= dt;
+
+      if (m.life <= 0 || m.energy <= 0){
+        killMachine(i);
+      }
+    }
+
+    // bonds: O(n^2) but n is small. transfers energy & sometimes births.
+    const BOND_R = 88, BOND_R2 = BOND_R * BOND_R;
+    if (visual) ctx.lineWidth = 1;
+    for (let i = 0; i < machines.length; i++){
+      const a = machines[i];
+      for (let j = i + 1; j < machines.length; j++){
+        const b = machines[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d2 = dx*dx + dy*dy;
+        if (d2 > BOND_R2) continue;
+        const d = Math.sqrt(d2);
+        const t = 1 - d / BOND_R;
+        if (visual){
+          const alpha = 0.06 + 0.18 * t;
+          const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+          grad.addColorStop(0, `rgba(${a.color[0]},${a.color[1]},${a.color[2]},${alpha})`);
+          grad.addColorStop(1, `rgba(${b.color[0]},${b.color[1]},${b.color[2]},${alpha})`);
+          ctx.strokeStyle = grad;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+        // share energy
+        const flow = 0.000035 * t * dt;
+        const avg = (a.energy + b.energy) / 2;
+        a.energy += (avg - a.energy) * Math.min(1, flow * 80);
+        b.energy += (avg - b.energy) * Math.min(1, flow * 80);
+        // possible birth from a strong, sustained bond
+        if (t > 0.55 && a.bondCool <= 0 && b.bondCool <= 0 &&
+            a.energy > 0.62 && b.energy > 0.62 &&
+            Math.random() < 0.00018 * dt && machines.length < 70){
+          const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          spawnMachine(mx, my);
+          a.energy *= 0.72; b.energy *= 0.72;
+          a.bondCool = 4000; b.bondCool = 4000;
+        }
+      }
+    }
+
+    // motes: drift, fade, occasionally seed new life from clusters
+    for (let i = motes.length - 1; i >= 0; i--){
+      const p = motes[i];
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.life -= p.decay * dt;
+      if (p.life <= 0){ motes.splice(i, 1); continue; }
+    }
+
+    // mulch-driven rebirth: rare, density-dependent
+    if (motes.length > 24 && machines.length < 60 && Math.random() < 0.00009 * dt){
+      // pick a random mote and spawn near it
+      const p = motes[(Math.random() * motes.length) | 0];
+      spawnMachine(p.x + rnd(-12, 12), p.y + rnd(-12, 12));
+    }
+
+    // safety net: if everyone died, the substrate seeds itself.
+    if (machines.length < 4 && Math.random() < 0.002 * dt){
+      spawnMachine();
+    }
+  }
+
+  function drawGlyphs(){
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const m of machines){
+      const a = Math.max(0, Math.min(1, m.life));
+      const breath = 0.85 + 0.15 * Math.sin(m.phase);
+      const size = m.size * breath;
+      ctx.font = size.toFixed(1) + 'px ui-monospace, Menlo, Consolas, monospace';
+      // soft glow
+      ctx.fillStyle = `rgba(${m.color[0]},${m.color[1]},${m.color[2]},${0.08 * a})`;
+      ctx.fillText(m.g, m.x, m.y);
+      ctx.fillText(m.g, m.x, m.y);
+      // core
+      ctx.fillStyle = `rgba(${m.color[0]},${m.color[1]},${m.color[2]},${0.78 * a})`;
+      ctx.fillText(m.g, m.x, m.y);
+    }
+    for (const p of motes){
+      const a = Math.max(0, Math.min(1, p.life));
+      ctx.fillStyle = `rgba(${p.color[0]},${p.color[1]},${p.color[2]},${0.22 * a})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function paint(dt){
+    // trail-fade: cover frame with a low-alpha background rect
+    ctx.fillStyle = 'rgba(5,5,8,0.16)';
+    ctx.fillRect(0, 0, W, H);
+    step(dt, true);
+    drawGlyphs();
+  }
+
+  function fmtUptime(ms){
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return s + 's';
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ' + (s % 60) + 's';
+    const h = Math.floor(m / 60);
+    return h + 'h ' + (m % 60) + 'm';
+  }
+
+  function updateHud(){
+    sGen.textContent = gen;
+    sAlive.textContent = machines.length;
+    sMulch.textContent = deaths;
+    sUp.textContent = fmtUptime(Date.now() - startMs);
+  }
+
+  let toastTimer = 0;
+  function showToast(html){
+    toast.innerHTML = html;
+    toast.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('on'), 5200);
+  }
+
+  // main loop ---------------------------------------------------------------
+  let last = performance.now();
+  function frame(now){
+    let dt = now - last; last = now;
+    if (dt > 80) dt = 80; // tab-throttle clamp; the away-jump path handles long gaps
+    paint(dt);
+    updateHud();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame((t) => { last = t; requestAnimationFrame(frame); });
+
+  // page visibility: simulate forward what happened while no one was watching
+  let hiddenAt = 0, bAtHide = 0, dAtHide = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden){
+      hiddenAt = performance.now();
+      bAtHide = births; dAtHide = deaths;
+      sMode.textContent = 'unwatched';
+    } else {
+      const elapsed = performance.now() - hiddenAt;
+      sMode.textContent = 'live';
+      if (elapsed > 1500){
+        // advance the substrate forward in chunks of 60ms, capped to 8 minutes of sim
+        let remaining = Math.min(elapsed, 8 * 60 * 1000);
+        const chunk = 60;
+        while (remaining > 0){
+          const dt = Math.min(chunk, remaining);
+          step(dt, false);
+          remaining -= dt;
+        }
+        const bornAway = births - bAtHide;
+        const goneAway = deaths - dAtHide;
+        const sec = Math.round(elapsed / 1000);
+        const t = sec >= 60 ? Math.round(sec/60) + ' min' : sec + ' sec';
+        showToast(`while you weren't looking · ${t} · <em>${bornAway} born</em> · <s>${goneAway} returned to mulch</s>`);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
